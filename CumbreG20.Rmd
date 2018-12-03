@@ -1,0 +1,234 @@
+---
+title: "BlogPost"
+author: "Felipe Sodré Mendes Barros"
+output:
+  word_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+### CumbreG20
+
+
+```{r, eval=FALSE}
+library(rtweet)
+library(tidyverse)
+library(lubridate)
+# text mining library
+library(tidytext)
+library(wordcloud2)
+library(data.table)
+
+consumer_key <- "H4ljPlljHfQacfDhbDXCpCd37"
+consumer_secret <- "CferzYTaf822R6U8lSWt995Ek681kXBnX5Gt6ysWF45TzLrYMX"
+access_token <- "3323332149-x8GNuo7ziFaRgJiPnBOOH2mRLdUJuZy4Wnbe2bs"
+access_secret <- "6SRUNmVoyK5cGkgYVOjblcAEFL7TyzNe1TgjaL3fy8uN3"
+create_token(
+  app = "ciencia de datos con R",
+  consumer_key,
+  consumer_secret,
+  access_token,
+  access_secret)
+
+
+
+## search for 18000 tweets using the rstats hashtag
+CumbreG20 <- search_tweets( "#CumbreG20", n = 18000, include_rts = FALSE, type = "recent", retryonratelimit = TRUE)
+#write_as_csv(CumbreG20, "./datos/CumbreG20_7.csv")
+
+G20Argentina <- search_tweets( "#G20Argentina", n = 18000, include_rts = FALSE, type = "recent", retryonratelimit = TRUE)
+#write_as_csv(G20Argentina, "./datos/G20Argentina_7.csv")
+
+G20Summit <- search_tweets( "#G20Summit", n = 18000, include_rts = FALSE, type = "recent", retryonratelimit = TRUE)
+#write_as_csv(G20Summit, "./datos/G20Summit_7.csv")
+
+g20org <- search_tweets( "@g20org", n = 18000, include_rts = FALSE, type = "recent", retryonratelimit = TRUE)
+#write_as_csv(G20Summit, "./datos/g20org_7.csv")
+```
+```{r, eval=FALSE}
+# Entendiendo los datos
+datosList <- read_twitter_csv(list.files("./datos", full.names = TRUE)[1], unflatten = TRUE)
+
+colnames(datosList)
+
+datosList[1,"account_lang"]
+"account_lang"
+datosList[1,"verified"]
+"verified"
+datosList[1,"favourites_count"]
+"favourites_count" 
+datosList[1,"geo_coords"]
+"geo_coords"
+datosList[1,"quoted_location"]
+datosList[1,"place_name"]
+
+datosList[1,"quoted_screen_name"]
+
+datosList[1,"lang"][[1]]
+"lang" 
+datosList[1,"mentions_screen_name"][[1]]
+"mentions_screen_name"
+datosList[1,"hashtags"][[1]]
+"hashtags"
+datosList[1,"text"]
+datosList[1,"screen_name"]
+datosList[1,"mentions_screen_name"][[1]]
+
+
+# Necesitamos buscar una forma de leer todos los csv sin hacer falta hacelo a cada uno
+rt <- read_csv("./datos/TweetsBocaVCRiver.csv")
+rtboca <- read_csv("./datos/@BocaJrsOficial.csv")
+rtriver <- read_csv("./datos/@CARPoficial.csv")
+rtcomebol <- read_csv("./datos/@CONMEBOL2.csv")
+
+tudo <- bind_rows(rtcomebol, rtboca, rtriver, rt)
+```
+  
+### Preguntas:
+Por ahora se me ocurrió algunas preguntas como:  
+  
+- Cuales nombres fueron mencionados en conjunto con otros (nombre asociados entre si);  
+- Que "presidente" es más influyente?
+  - Más mencionado?
+  - Más favoritado?
+  - Sentimentos relacionados a los distintos presidentes;
+  
+```{r, eval=FALSE}
+ts_plot(tudo, "24 hours") +
+  ggplot2::theme_minimal()
+#ggsave(filename = "./graficos/cantidadTiempo", device = "png")
+```
+  
+Se nota que deopués del día 24, día en lo cual debería haber el partido, aumentó mucho la cantidad de mensajes relacionadas el tema. Sería decir que a partir de eso aumento la atención al tema.  
+
+```{r}
+tudo <- 
+  tudo %>%
+  mutate(Dia = day(created_at),
+         Mes = month(created_at),
+         Hora = hour(created_at),
+         text = tolower(text))
+
+rt <- 
+  rt %>%
+  mutate(Dia = day(created_at),
+         Mes = month(created_at),
+         Hora = hour(created_at),
+         text = tolower(text))
+
+afinn <- read.csv("lexico_afinn.en.es.csv", stringsAsFactors = F, fileEncoding = "latin1") %>% 
+  tbl_df()
+
+tuits_palabras <- 
+  rt %>%
+  unnest_tokens(input = "text", output = "Palabra") %>% # separa cada palabra del texto
+  inner_join(afinn, ., by = "Palabra") %>% # join con lexico es
+  mutate(Tipo = ifelse(Puntuacion > 0, "Positiva", "Negativa")) %>% 
+  rename("Usuario" = screen_name)
+
+tudo_palabras <- 
+  tudo %>%
+  unnest_tokens(input = "text", output = "Palabra") %>% # separa cada palabra del texto
+  inner_join(afinn, ., by = "Palabra") %>% # join con lexico es
+  mutate(Tipo = ifelse(Puntuacion > 0, "Positiva", "Negativa")) %>% 
+  rename("Usuario" = screen_name)
+
+stopword <- stopwordslangs %>% filter(lang == "es") %>% select(word)
+
+tuits_palabras <- tuits_palabras %>% filter(! Palabra %in% stopword$word )
+tudo_palabras <- tudo_palabras %>% filter(! Palabra %in% stopword$word )
+```
+```{r, eval=FALSE}
+tuits_palabras %>%
+  group_by(Palabra) %>% 
+  count() %>% 
+  arrange(desc(n)) %>% 
+  wordcloud2()
+```
+  
+Las palabras más usadas acaban por se aquellas relacionadas a los sentimientos negativos.  
+
+```{r, eval=FALSE}
+tuits_palabras %>%
+  filter(Tipo ==  "Positiva") %>%
+  count(Palabra) %>% 
+  arrange(desc(n)) %>% 
+  wordcloud2()
+```
+```{r}
+#Tudo
+tudo_palabras %>%
+  group_by(Tipo) %>%
+  count(Palabra, sort = T) %>%
+  arrange(desc(n)) %>% slice(1:10) %>%
+  ggplot() +
+  aes(Palabra, n, fill = Tipo) +
+  geom_col() +
+  facet_wrap( ~Tipo, scales = "free") +
+  coord_flip()
+#ggsave(filename = "./graficos/CantidadPosNeg", device = "png")
+```
+  
+Mirando las 10 palabras más frecuentes, tanto las con carga positiva, como negativa, se nota de forma más enfática que las palabras con carga de sentimientos negativos son en orden de grandeza mucho mayores que las palabras positivas.  
+  
+```{r}
+puntaje_hora <-
+  tudo_palabras %>%
+  group_by(status_id) %>% # para analisar promedio por msg
+  mutate(Promedio = mean(Puntuacion)) %>%
+  group_by(Dia, Hora) %>%
+  summarise(Media = mean(Puntuacion))
+
+puntaje_hora %>% 
+  ggplot() +
+  aes(Hora, Media) +
+  geom_smooth() +
+  facet_wrap(~Dia) + 
+  theme(legend.position = "top")
+# ggsave(filename = "./graficos/tendenciasxdia", device = "png")
+```
+  
+Se hace pertinente también notar lo como las emociones de los mensajes cambian a lo largo de las horas de los días analisados. El partido debería ser en el día 24 a las 17h. Se nota que para dicho día hay una tendencia de mensajes positivas, como dejando claro la espectiva de los hinchas con el partido. Pero , a partir del momento que se lo cancela hay un cambio enorme en las emociones expresas en los mensajes, que se tornan negativos. El día 25, con la expectativa de que se realice el partido hubo también una mejor, pero bien tíida, de la carga de los mensajes. En los dias seguientes, se queda todo con carga bien negativa y "estable".
+
+```{r, echo=FALSE, eval=FALSE}
+puntaje_hora %>%
+  summarise(Media = mean(Media)) %>% 
+  ggplot() +
+  aes(Dia, Media) +
+  geom_line() +
+  theme(legend.position = "top")
+```
+
+Otra análisis intereante se hizo con relacion a los dispositivos utilizados para enviar los mensajes: androi, iphone o por la web.
+Quien posee sentimentos más negativo?
+
+Quizás por el hecho que estarmos siempre con el telefono en las manos y poder agir por impuso, los mensajes de dispositivos móviles tienden a tener carga más negativa que los mensajes enviados por la web.
+```{r}
+top_source <- tuits_palabras %>%
+  group_by(source) %>%
+  count() %>% 
+  arrange(desc(n)) %>% 
+  filter(n >= 24)
+
+tuits_palabras %>% 
+  right_join(top_source, by ="source") %>% 
+  group_by(source) %>%
+  summarise(Promedio = mean(Puntuacion)) %>% 
+  ggplot(aes(source, Promedio, fill = "Negativa")) + 
+  geom_col()
+#ggsave(filename = "./graficos/SentimientoSource", device = "png")
+```
+
+```{r, eval=FALSE}
+tudo_palabras %>%
+  right_join(top_source, by ="source") %>% 
+  group_by(Tipo, source) %>%
+  count(Palabra, sort = T) %>% slice(1:10) %>%
+  ggplot( aes(Palabra, nn, fill = Tipo)) +
+  geom_col() +
+  facet_grid( source ~ Tipo, scales = "free") +
+  coord_flip() 
+```
