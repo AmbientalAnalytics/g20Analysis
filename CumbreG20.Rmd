@@ -16,13 +16,6 @@ Algunas referencias:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 # creando un tema ggplot
-tema_graf <-
-  theme_minimal() +
-  theme(text = element_text(family = "serif"),
-        panel.grid.minor = element_blank(),
-        strip.background = element_rect(fill = "#EBEBEB", colour = NA),
-        legend.position = "none",
-        legend.box.background = element_rect(fill = "#EBEBEB", colour = NA))
 ```
 
 ### CumbreG20
@@ -36,7 +29,31 @@ library(lubridate)
 library(tidytext)
 library(wordcloud2)
 library(data.table)
+library(ggplot2)
+library(cluster)    # clustering algorithms
+library(factoextra) # clustering visualization
+library(tm)
 
+tema_graf <-
+  theme_minimal() +
+  theme(text = element_text(family = "serif"),
+        panel.grid.minor = element_blank(),
+        strip.background = element_rect(fill = "#EBEBEB", colour = NA),
+        legend.position = "none",
+        legend.box.background = element_rect(fill = "#EBEBEB", colour = NA))
+```
+```{r}
+# cargando lexico
+afinn <- read.csv("lexico_afinn.en.es.csv", stringsAsFactors = F, fileEncoding = "latin1") %>% 
+  tbl_df()
+
+# Identificando stopword
+stopword.es <- stopwordslangs %>% filter(lang == "es" & p >= 0.80) %>% select(word)
+# inglés
+stopword.en <- stopwordslangs %>% filter(lang == "en" & p >= 0.80) %>% select(word)
+```
+#### Configurando y descargando datos
+```{r, eval=FALSE}
 consumer_key <- "H4ljPlljHfQacfDhbDXCpCd37"
 consumer_secret <- "CferzYTaf822R6U8lSWt995Ek681kXBnX5Gt6ysWF45TzLrYMX"
 access_token <- "3323332149-x8GNuo7ziFaRgJiPnBOOH2mRLdUJuZy4Wnbe2bs"
@@ -63,6 +80,8 @@ G20Summit <- search_tweets( "#G20Summit", n = 18000, include_rts = FALSE, type =
 g20org <- search_tweets( "@g20org", n = 18000, include_rts = FALSE, type = "recent", retryonratelimit = TRUE)
 #write_as_csv(G20Summit, "./datos/g20org_7.csv")
 ```
+### Cargando los datos  
+** basta ejecutar la ultima linea para cargar todos los datos.**  
 ```{r, eval=FALSE}
 # Entendiendo los datos
 datosList <- read_twitter_csv(list.files("./datos", full.names = TRUE)[1], unflatten = TRUE)
@@ -114,18 +133,164 @@ Por ahora se me ocurrió algunas preguntas como:
   - Más mencionado?
   - Más favoritado?
   - Sentimentos relacionados a los distintos presidentes;
+  
+#### Cuales lenguas publicaron mas?  
+
+```{r}
+tweets %>% 
+  count(lang) %>%
+  droplevels() %>%
+  top_n(4) %>% 
+  ggplot(aes(x = reorder(lang, desc(n)), y = n)) +
+    geom_bar(stat = "identity", alpha = 0.8) +
+    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+    labs(x = "language ISO 639-1 code",
+         y = "number of tweets")
+```
+
+# Cual fué la cantidad de likes?  
+
+```{r}
+tweets %>% 
+  ggplot(aes(x = log2(favourites_count))) +
+    geom_density(alpha = 0.8) +
+    labs(x = "log2 of number of favourites",
+         y = "density")
+```
+#### Hashtags mas usadas:
+```{r, eval=FALSE}
+tweets %>% 
+  unnest_tokens(input = "hashtags", output = "Hashtags") %>% 
+  select(Hashtags) %>% 
+  count(Hashtags,sort = TRUE) %>% 
+  top_n(100) %>% 
+  wordcloud2(maxRotation = 0, shuffle = FALSE)
+```
+#### Cuales lideres fueron mas mencionados?  
+
+```{r}
+lideres <- c("abeshinzo",
+             "mauriciomacri",
+             "AngelaMerkeICDU",
+             "realdonaldtrump",
+             "theresa_may",
+             "rt_erdogan",
+             "sanchezcastejon",
+             "cyrilramaphosa",
+             "leehsienloong",
+             "macky_sall",
+             "kingsalman",
+             "paulkagame",
+             "kremlinrussia_e",
+             "_moonjae_in",
+             "minpres",
+             "epn",
+             "andrewholnessjm",
+             "GiuseppeConteIT",
+             "jokowi",
+             "narendramodi",
+             "EmmanuelMacron",
+             "eucopresident",
+             "JunckerEU",
+             "Xi Jinping",
+             "sebastianpinera",
+             "JustinTrudeau",
+             "MichelTemer",
+             "ScottMorrisonMP",
+             "putin")
+lideres <- lideres %>% tolower()
+```
+```{r}
+tweets %>% 
+  unnest_tokens(input = "mentions_screen_name", output = "Mentions") %>% 
+  select(Mentions) %>% 
+  filter(!is.na(Mentions), Mentions %in% lideres) %>% 
+  count(Mentions, sort = TRUE) %>% 
+  top_n(5) %>% 
+  ggplot( aes(Mentions, n)) + 
+  geom_col()
+```
+#### Con que tipo de sentimiento cada representante?
+
+```{r}
+afinnALL <- afinn %>% gather("Categoria", "Palabra", Palabra, Word) %>% 
+  select(Puntuacion, Palabra)
+all <- tweets %>%
+  mutate(Dia = day(created_at),
+         Mes = month(created_at),
+         Hora = hour(created_at),
+         text = tolower(text)) %>% 
+  filter(Dia == 30 | Dia == 1) %>%   # filtrando días de la cumbre
+  unnest_tokens(input = "text", output = "Palabra") %>%
+  inner_join(afinnALL, ., by = "Palabra") %>% # join con lexico es
+  mutate(Tipo = ifelse(Puntuacion > 0, "Positiva", "Negativa")) %>% 
+  filter((! Palabra %in% stopword.en$word) | (! Palabra %in% stopword.es$word) )
+
+
+all %>% 
+  unnest_tokens(input = "mentions_screen_name", output = "Mentions") %>% 
+  group_by(Mentions) %>% 
+  filter((!is.na(Mentions)), Mentions %in% lideres) %>%
+  summarise(Promedio = mean(Puntuacion)) %>% 
+  mutate(Tipo = ifelse(Promedio >= 0, "Positiva", "negativa")) %>% 
+  ggplot( aes(Mentions, Promedio, fill = Tipo)) +
+  geom_col() +
+  coord_flip()
+```
+
+```
+
+#### Cual lider mas mencionado con hashtag?
+```{r}
+tweets %>% 
+  unnest_tokens(input = "hashtags", output = "hashtags") %>% 
+  select(hashtags) %>% 
+  filter(!is.na(hashtags), hashtags %in% lideres) %>% 
+  count(hashtags, sort = TRUE) %>% 
+  top_n(5) %>% 
+  ggplot( aes(hashtags, n)) + 
+  geom_col()
+```
+
+```{r esta-malI, eval=FALSE}
+# No anduvo! 
+text <- as.data.frame(tweets$text)
+text <- sub("http://([[:alnum:]|[:punct:]])+", '', text)
+corpus = tm::Corpus(tm::VectorSource(text)) 
+ 
+# Cleaning up 
+# Handling UTF-8 encoding problem from the dataset 
+#corpus.cleaned <- tm::tm_map(corpus, function(x) iconv(x, to='UTF-8-MAC', sub='byte'))  
+corpus.cleaned <- tm::tm_map(corpus, tm::removeWords, tm::stopwords('english')) # Removing stop-words 
+corpus.cleaned <- tm::tm_map(corpus, tm::stemDocument, language = "english") # Stemming the words  
+corpus.cleaned <- tm::tm_map(corpus.cleaned, tm::stripWhitespace) # Trimming excessive whitespaces
+
+head(corpus.cleaned)
+tdm <- tm::DocumentTermMatrix(corpus.cleaned) 
+tdm.tfidf <- tm::weightTfIdf(tdm)
+tdm.tfidf <- tm::removeSparseTerms(tdm.tfidf, 0.999) 
+tfidf.matrix <- as.matrix(tdm.tfidf) 
+# Cosine distance matrix (useful for specific clustering algorithms) 
+dist.matrix = proxy::dist(tfidf.matrix, method = "cosine")
+
+#clustering.kmeans <- kmeans(tfidf.matrix, truth.K) 
+clustering.hierarchical <- hclust(dist.matrix, method = "ward.D2") 
+clustering.dbscan <- dbscan::hdbscan(dist.matrix, minPts = 10)
+```
+
+```{r esta_malII, eval=FALSE}
+# esta mal!
+tweets %>%
+  mutate(Dia = day(created_at),
+         statusesCount_pDay = statuses_count / length(Dia)) %>%
+  select(screen_name, favourites_count, statusesCount_pDay) %>%
+  distinct(screen_name, favourites_count) %>% 
+  arrange(desc(favourites_count)) %>%
+  top_n(10)
+```
 
 ### Data cleaning/organizing
 ```{r}
-# cargando lexico
-afinn <- read.csv("lexico_afinn.en.es.csv", stringsAsFactors = F, fileEncoding = "latin1") %>% 
-  tbl_df()
-
-# Identificando stopword
-stopword.es <- stopwordslangs %>% filter(lang == "es" & p >= 0.80) %>% select(word)
-# inglés
-stopword.en <- stopwordslangs %>% filter(lang == "en" & p >= 0.80) %>% select(word)
-
 # Separando ES, EN y filtrando dias de cumbre
 tw.en <- 
   tweets %>%
@@ -151,7 +316,7 @@ tw.es <-
   mutate(Tipo = ifelse(Puntuacion > 0, "Positiva", "Negativa")) %>% filter(! Palabra %in% stopword.es$word )
 ```
 
-# serái interesante si pudíeramos hacer los mapas abajo en una diferenciando por el color....
+# será interesante si pudíeramos hacer los graficos abajo en una diferenciando por el color....
 ```{r, eval=FALSE}
 ts_plot(tw.es, "2 hours") +
   ggplot2::theme_minimal()
@@ -167,11 +332,26 @@ ts_plot(tw.en, "2 hours") +
 
 ```{r, eval=FALSE}
 tw.en %>%
-  group_by(Palabra) %>% 
+  group_by(Word) %>% 
   count() %>% 
   arrange(desc(n)) %>% 
   filter(n >= 250) %>% 
   wordcloud2()
+```
+#### sucks?
+```{r}
+msg <- tweets %>%
+  unnest_tokens(input = "text", output = "Palabra") %>% 
+  filter(Palabra == "sucks") %>% 
+  select(status_id) %>% 
+  distinct()
+Asesino <- tweets %>% 
+  filter(status_id %in% msg$status_id) %>% 
+  unnest_tokens(input = "mentions_screen_name", output = "Mentions")
+Asesino %>% 
+    group_by(Mentions) %>% 
+  count(sort = TRUE) %>% 
+  filter(Mentions %in% lideres)
 ```
 
 ```{r, eval=FALSE}
@@ -180,8 +360,24 @@ tw.es %>%
   count() %>% 
   arrange(desc(n)) %>% 
   filter(n >= 50) %>% 
-  wordcloud2()
+  wordcloud2(maxRotation = 0, shuffle = FALSE)
 ```  
+#### Por que aparece asesinato?
+```{r}
+msg <- tweets %>%
+  unnest_tokens(input = "text", output = "Palabra") %>% 
+  filter(Palabra == "asesinato" | Palabra %in% c("assassination", "murder", "murdering")) %>% 
+  select(status_id) %>% 
+  distinct()
+Asesino <- tweets %>% 
+  filter(status_id %in% msg$status_id) %>% 
+  unnest_tokens(input = "mentions_screen_name", output = "Mentions")
+Asesino %>% 
+    group_by(Mentions) %>% 
+  count(sort = TRUE) %>% 
+  filter(Mentions %in% lideres)
+```
+
 
 ### Analisis por el tipo de sentimiento  
 ```{r}
