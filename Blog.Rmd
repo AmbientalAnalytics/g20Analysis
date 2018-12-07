@@ -182,19 +182,7 @@ tweets %>%
 #ggsave("./graficos/LikesPorLengua.png", dpi = 300)
 ```
   
-Una vez confirmado la concentración de los tweets y su repercusión general, se pudo identificar cuáles líderes políticos del G20 fueron más influyentes, de os cuales, los 3 más influyentes fueron Mauricio Macri, seguido por Donald Trump y Narendra Modi (primer ministro de India). Pero hace falta mencionar que algunos de los más 
-#### Hashtags más usadas:  
-  
-```{r, eval=FALSE}
-tweets %>% 
-  unnest_tokens(input = "hashtags", output = "Hashtags") %>% 
-  select(Hashtags) %>% 
-  count(Hashtags,sort = TRUE) %>% 
-  top_n(50) %>% 
-  wordcloud2(size = .5, maxRotation = 0, shuffle = FALSE)
-```
-  
-#### Cuales lideres fueron mas mencionados?  
+Una vez confirmado la concentración de los tweets y su repercusión general, se pudo identificar cuáles líderes políticos del G20 fueron más influyentes, de os cuales, los 3 más influyentes fueron Mauricio Macri, seguido por Donald Trump (EEUU) y Narendra Modi (India). Pero hace falta mencionar que algunos de los más polémicos políticos no tienen perfil en dicha red, como Vladimir Putin (Rusia), Mohammed Bin Salam (Arabia Saudita) y Xi Jinping (China). De hecho, se hizo una búsqueda por los líderes más mencionados através de "hashtags", lo que nos permitió identificar la influencia de Valdimir Putin y Mohammed Bin Salam, claro, además del Narendra Modi.
   
 ```{r}
 lideres <- c("abeshinzo",
@@ -245,8 +233,7 @@ tweets %>%
 #ggsave("./graficos/LideresMencionados.png", dpi = 300)
 ```
   
-#### Cual lider mas mencionado con hashtag?  
-  
+
 ```{r}
 tweets %>% 
   unnest_tokens(input = "hashtags", output = "Hashtags") %>% 
@@ -262,28 +249,6 @@ tweets %>%
 #ggsave("./graficos/LideresMencionados#.png", dpi = 300)
 ```
   
-#### Juntando hashtags and Mentions  
-  
-```{r, eval=TRUE}
-MergedMentions <- tweets %>% 
-  unnest_tokens(input = "mentions_screen_name", output = "Mentions") %>% 
-  filter(!is.na(Mentions), Mentions %in% lideres) %>% 
-  unnest_tokens(input = "hashtags", output = "Hashtags") %>% 
-  gather("origin", "MentionsMerged", Mentions, Hashtags) %>% 
-  filter(!is.na(MentionsMerged), MentionsMerged %in% lideres)
-
-MergedMentions %>% 
-  count(MentionsMerged, sort = TRUE) %>% 
-  top_n(3) %>% 
-  ggplot( aes(reorder(MentionsMerged, -n), n)) + 
-  geom_col() +
-  labs(x = "Cantidad de likes",
-         y = "densidad") + 
-  tema_graf
-#ggsave("./graficos/LideresMencionadosY#.png", dpi = 300)
-```
-
-### Wordcloud
 ```{r}
 afinnALL <- afinn %>% gather("Categoria", "Palabra", Palabra, Word) %>% 
   select(Puntuacion, Palabra)
@@ -322,6 +287,8 @@ all <- MergedMentions %>%
   mutate(Tipo = ifelse(Puntuacion > 0, "Positiva", "Negativa")) %>% 
   filter((! Palabra %in% stopword.en$word) | (! Palabra %in% stopword.es$word) )
 ```
+  
+De todos los tweets recolectados en ambos idiomas (izquierda), las palabras más usadas estaban en español, como  "Gracias" y "Orgullo". Ahora si se analisa solamente lost tweets originados en dispostivos de idioma español (derecha), tenemos que las palabras más frecuentes fueron "Emocionado", "Emocionante" y "Asesinato".  
    
 ```{r}
 all %>% 
@@ -332,6 +299,8 @@ all %>%
   wordcloud2(size = 0.5, maxRotation = 0, shuffle = FALSE)
 ```
   
+Si bien sabemos que con el evento en el Teatro Colón hubo gran cantidad de sentimientos y emociones involucrados, empezamos a buscar una forma de confirmar que dichos sentimientos estaban de hecho relacionados a este punto específico del encuentro.  
+
 ```{r}
 tw.es %>% 
   group_by(Palabra) %>% 
@@ -344,9 +313,21 @@ tw.es %>%
 #  count(sort = T) %>% 
 #  wordcloud2(size = 0.5, maxRotation = 0, shuffle = FALSE)
 ```
+Sabiendo cuales fueron las palabras más usadas surgió la siguiente pregunta ?A qué o quienes hace referencia estas palabras?  
+Es por esto que se realizó un análisis temporal de los tweets de cada palabra usada y se discubrió que habia una mayor concentración de tweets con las palabras "emocionado" y "emocionante" entre las 20 y 24 horas del día 30 de Noviembre, por lo tanto concluimos de que dichas palabras están relacionadas con el evento "Argentum" en el teatro Colón.  
+
+```{r}
+all %>% 
+  filter((Palabra == "emocionado") | (Palabra == "emocionante")) %>% 
+  ts_plot("2 hours") +
+  labs (x = "Fecha",
+         y = "Cantidad de tweets")
+#ggsave("./graficos/TimeseriesEmocionado.png", dpi = 300)
+```
+
+Encuanto a palabra "Asesinato", Ahora para entender lo que se taba comentando en relación a la palabra "asesinato", buscamos identificar los líderes políticos más relacionados a palabras negativas (grafico abajo) y atraves del cual se nota Mohammed Bin Salam.
 
 
-#### Con que tipo de sentimiento cada representante?
 ```{r}
 all %>% 
   group_by(MentionsMerged, status_id) %>% 
@@ -373,157 +354,4 @@ all %>%
   count(Palabra,sort = TRUE) %>% 
   top_n(100) %>% 
   wordcloud2(size = 0.5, maxRotation = 0, shuffle = FALSE)
-```
-
-## Y las palabras positivas?
-Será que están relacionadas a la presentación en Teatro Colón?
-```{r}
-all %>% 
-  filter((Palabra == "emocionado") | (Palabra == "emocionante")) %>% 
-  ts_plot("30 min") +
-  labs (x = "Fecha",
-         y = "Cantidad de tweets")
-#ggsave("./graficos/TimeseriesEmocionado.png", dpi = 300)
-```
-
-## Cantidad de tweets a cada 30 min. horas acuerdo a lengua
-```{r, eval=FALSE}
-all %>% 
-  dplyr::group_by(lang) %>% 
-  filter(lang %in% c("es", "en"), Dia %in% c(1, 30)) %>% 
-  ts_plot( "30 min") +
-  ggplot2::theme_minimal()
-  #ggsave(filename = "./graficos/cantidadTiempo", device = "png")
-```
-
-#### quienes son sucks?
-```{r, eval=FALSE}
-all %>%
-  filter(Palabra == "sucks") %>% 
-    group_by(MentionsMerged) %>% 
-  count(sort = TRUE)
-```
-
-#### Por que aparece asesinato?
-```{r, eval=FALSE}
-all %>%
-  filter(Palabra == "asesinato" | Palabra %in% c("assassination", "murder", "murdering")) %>% group_by(MentionsMerged) %>% 
-  count(sort = TRUE)
-```
-### Analisis por el tipo de sentimiento  
-```{r, eval=FALSE}
-all %>%
-  filter(lang %in% c("es", "en")) %>% 
-  group_by(Tipo, lang) %>%
-  count(Palabra, sort = T) %>%
-  arrange(desc(n)) %>% slice(1:3) %>%
-  ggplot( aes(reorder(Palabra, n), n, fill = Tipo)) +
-  geom_col() +
-  facet_grid( Tipo~lang, scales = "free") +
-  coord_flip() +
-  tema_graf
-#ggsave(filename = "./graficos/CantidadPosNeg", device = "png")
-```
-```{r, eval = FALSE}
-tw.es %>%
-  filter(lang %in% c("es", "en")) %>% 
-  group_by(Tipo, lang) %>%
-  count(Palabra, sort = T) %>%
-  arrange(desc(n)) %>% slice(1:3) %>%
-  ggplot( aes(reorder(Palabra, n), n, fill = Tipo)) +
-  geom_col() +
-  facet_grid( Tipo~lang, scales = "free") +
-  coord_flip() +
-  tema_graf
-#ggsave(filename = "./graficos/CantidadPosNeg", device = "png")
-```
-
-```{r, eval=FALSE}
-tw.en %>%
-  filter(lang %in% c("es", "en")) %>% 
-  group_by(Tipo, lang) %>%
-  count(Palabra, sort = T) %>%
-  arrange(desc(n)) %>% slice(1:3) %>%
-  ggplot( aes(reorder(Palabra, n), n, fill = Tipo)) +
-  geom_col() +
-  facet_grid( Tipo~lang, scales = "free") +
-  coord_flip() +
-  tema_graf
-#ggsave(filename = "./graficos/CantidadPosNeg", device = "png")
-```
-
-#### Sentimiento por tiempo  
-```{r, eval=FALSE}
-puntaje_hora <-
-  tw.es %>%
-  group_by(status_id) %>% # para analisar promedio por msg
-  mutate(Promedio = mean(Puntuacion)) %>%
-  group_by(Dia, Hora) %>%
-  summarise(Media = mean(Puntuacion))
-
-puntaje_hora %>% 
-  ggplot() +
-  aes(Hora, Media) +
-  geom_smooth() +
-  facet_wrap(~Dia) + 
-  theme(legend.position = "top")
-# ggsave(filename = "./graficos/tendenciasxdia", device = "png")
-```
-  
-
-#### Vision general de los sentimientos por mensajes/dispositivo  
-```{r, eval=FALSE}
-top_source <- tw.en %>%
-  group_by(source) %>%
-  count() %>% 
-  arrange(desc(n)) %>% 
-  filter(n >= 13591)
-
-tw.en %>% 
-  right_join(top_source, by ="source") %>% 
-  group_by(source) %>%
-  summarise(Promedio = mean(Puntuacion)) %>%
-  mutate(Tipo = ifelse(Promedio >= 0, "Positiva", "negativa")) %>% 
-  ggplot(aes(source, Promedio, fill = Tipo)) + 
-  geom_col()
-#ggsave(filename = "./graficos/SentimientoSource", device = "png")
-```
-
------------------------------
-
-```{r esta-malI, eval=FALSE}
-# No anduvo! 
-text <- as.data.frame(tweets$text)
-text <- sub("http://([[:alnum:]|[:punct:]])+", '', text)
-corpus = tm::Corpus(tm::VectorSource(text)) 
- 
-# Cleaning up 
-# Handling UTF-8 encoding problem from the dataset 
-#corpus.cleaned <- tm::tm_map(corpus, function(x) iconv(x, to='UTF-8-MAC', sub='byte'))  
-corpus.cleaned <- tm::tm_map(corpus, tm::removeWords, tm::stopwords('english')) # Removing stop-words 
-corpus.cleaned <- tm::tm_map(corpus, tm::stemDocument, language = "english") # Stemming the words  
-corpus.cleaned <- tm::tm_map(corpus.cleaned, tm::stripWhitespace) # Trimming excessive whitespaces
-
-head(corpus.cleaned)
-tdm <- tm::DocumentTermMatrix(corpus.cleaned) 
-tdm.tfidf <- tm::weightTfIdf(tdm)
-tdm.tfidf <- tm::removeSparseTerms(tdm.tfidf, 0.999) 
-tfidf.matrix <- as.matrix(tdm.tfidf) 
-# Cosine distance matrix (useful for specific clustering algorithms) 
-dist.matrix = proxy::dist(tfidf.matrix, method = "cosine")
-
-#clustering.kmeans <- kmeans(tfidf.matrix, truth.K) 
-clustering.hierarchical <- hclust(dist.matrix, method = "ward.D2") 
-clustering.dbscan <- dbscan::hdbscan(dist.matrix, minPts = 10)
-```
-
-```{r esta_malII, eval=FALSE}
-# esta mal!
-tweets %>%
-  mutate(Dia = day(created_at),
-         statusesCount_pDay = statuses_count / length(Dia)) %>%
-  select(screen_name, favourites_count, statusesCount_pDay) %>%
-  distinct(screen_name, favourites_count) %>% 
-  arrange(desc(favourites_count)) %>%
-  top_n(10)
 ```
