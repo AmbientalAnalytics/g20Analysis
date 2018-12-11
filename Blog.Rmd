@@ -20,15 +20,12 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 # creando un tema ggplot
 ```
   
+## Introduccion
+  
 ### CumbreG20  
 
-Fueron analizados publicaciones en el Twitter entre los días 30/11 y 01/12, tanto en inglés como en español, con las hashtags:  
-
-- CumbreG20;  
-- G20Argentina;  
-- G20Summit;  
-- g20Org;  
-
+Fueron analizados publicaciones en el Twitter entre los días 30/11 y 01/12, tanto en inglés como en español, con hashtags relacionada al tema.
+  
 ```{r}
 library(rtweet)
 library(tidyverse)
@@ -59,130 +56,20 @@ stopword.es <- stopwordslangs %>% filter(lang == "es" & p >= 0.80) %>% select(wo
 stopword.en <- stopwordslangs %>% filter(lang == "en" & p >= 0.80) %>% select(word)
 ```
   
-#### Configurando y descargando datos  
-```{r, eval=FALSE, echo=FALSE}
-consumer_key <- "H4ljPlljHfQacfDhbDXCpCd37"
-consumer_secret <- "CferzYTaf822R6U8lSWt995Ek681kXBnX5Gt6ysWF45TzLrYMX"
-access_token <- "3323332149-x8GNuo7ziFaRgJiPnBOOH2mRLdUJuZy4Wnbe2bs"
-access_secret <- "6SRUNmVoyK5cGkgYVOjblcAEFL7TyzNe1TgjaL3fy8uN3"
-create_token(
-  app = "ciencia de datos con R",
-  consumer_key,
-  consumer_secret,
-  access_token,
-  access_secret)
 
-## search for 18000 tweets using the rstats hashtag
-CumbreG20 <- search_tweets( "#CumbreG20", n = 18000, include_rts = FALSE, type = "recent", retryonratelimit = TRUE)
-#write_as_csv(CumbreG20, "./datos/CumbreG20_7.csv")
-
-G20Argentina <- search_tweets( "#G20Argentina", n = 18000, include_rts = FALSE, type = "recent", retryonratelimit = TRUE)
-#write_as_csv(G20Argentina, "./datos/G20Argentina_7.csv")
-
-G20Summit <- search_tweets( "#G20Summit", n = 18000, include_rts = FALSE, type = "recent", retryonratelimit = TRUE)
-#write_as_csv(G20Summit, "./datos/G20Summit_7.csv")
-
-g20org <- search_tweets( "@g20org", n = 18000, include_rts = FALSE, type = "recent", retryonratelimit = TRUE)
-#write_as_csv(G20Summit, "./datos/g20org_7.csv")
-```
-  
-### Cargando los datos  
-  
-**basta ejecutar la ultima linea para cargar todos los datos.**   
-
-```{r, eval=FALSE, echo=FALSE}
-# Entendiendo los datos
-datosList <- read_twitter_csv(list.files("./datos", full.names = TRUE)[1], unflatten = TRUE)
-
-colnames(datosList)
-
-datosList[1,"account_lang"]
-"account_lang"
-datosList[1,"verified"]
-"verified"
-datosList[1,"favourites_count"]
-"favourites_count" 
-datosList[1,"geo_coords"]
-"geo_coords"
-datosList[1,"quoted_location"]
-datosList[1,"place_name"]
-
-datosList[1,"quoted_screen_name"]
-
-datosList[1,"lang"][[1]]
-"lang" 
-datosList[1,"mentions_screen_name"][[1]]
-"mentions_screen_name"
-datosList[1,"hashtags"][[1]]
-"hashtags"
-datosList[1,"text"]
-datosList[1,"screen_name"]
-datosList[1,"mentions_screen_name"][[1]]
-
-
-# Necesitamos buscar una forma de leer todos los csv sin hacer falta hacelo a cada uno
-
-datosList <- list.files("./datos", full.names = TRUE)
-tweetts <- factor()
-for (a in datosList){
-  # a = datosList[2]
-  tweet <- read_twitter_csv(a, unflatten = TRUE)
-  tweets <- bind_rows(tweets, tweet)
-}
-# write_as_csv(tweets, "./datos/TodosDatosG20.csv")
-```
-  
 ```{r}
 tweets <- read_twitter_csv("./datos/TodosDatosG20.csv")
 tweets <- tweets %>% 
   distinct(status_id, .keep_all = TRUE)
 ```
    
-En el total se recolectó `r nrow(tweets)` menasajes a partir de las cuales se buscó responder a las seguintes preguntas:  
+En el total se recolectó `r nrow(tweets)` tweets a partir de las cuales se buscó responder a las seguientes preguntas:  
 
-- Cuales líderes políticos fueron más mencionados?  
-- Cuales palabras fueron más usadas en general y cuales sentimientos relacionados a las mismas?
-- Cuales palabras fueron más usadas en español y sus sentimientos asociados?  
-
-#### Cuales lenguas publicaron mas?  
-Como estavimos recolectando publicaciones tanto en inglés cuanto en español, tuvimos el cuidado de certificarnos la tantidad de mensajes de cada lengua, de forma que no hayan mas mensjaes en inglés que español;  
-```{r}
-distLengua <- tweets %>% 
-  count(lang) %>%
-  droplevels() %>%
-  top_n(2) 
-perc <- distLengua %>% 
-  mutate(total = sum(n),
-         perc = (n/total)*100)
-```
-
-En el seguiente gráfico se percibe que hubo el doble de mensajes en español (`r round(perc$perc[2], 0)`% ) que en inglés (`r round(perc$perc[1], 0)`% ).
-```{r}
-perc %>% 
-  ggplot(aes(x = reorder(lang, desc(perc)), y = perc)) +
-    geom_bar(stat = "identity", alpha = 0.8) +
-    theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
-    labs(x = "",
-         y = "Cantidad de tweets") + 
-  tema_graf
-#ggsave("./graficos/TweetsLengua.png", dpi = 300)
-```
+- Cuáles fueron los líderes políticos más mencionados?  
+- Cuáles fueron las palabras más usadas en general y sus sentimientos asociados?
+- Cuáles fueron las palabras más usadas en español y sus sentimientos asociados?  
   
-Si bien se nota que hubo más tweets en español, si uno analiza la cantidad de "me gusta", no hay mucha diferencia entre ambos lenguages si comparamos su densidad; Es decir, tanto los tweets en español como en inglés tuvieron bastante repercusión, presentando mayor concentración de "me gusta" en el rango de 10-15.
-  
-```{r}
-tweets %>% 
-  filter(lang %in% c("es", "en")) %>% 
-  group_by(lang) %>% 
-  ggplot(aes(x = log2(favourites_count), colour = lang, group = lang)) +
-    geom_density(alpha = 0.8) +
-    labs(x = "Cantidad de likes",
-         y = "densidad") + 
-  tema_graf
-#ggsave("./graficos/LikesPorLengua.png", dpi = 300)
-```
-  
-Una vez confirmado la concentración de los tweets y su repercusión general, se pudo identificar cuáles líderes políticos del G20 fueron más influyentes, de os cuales, los 3 más influyentes fueron Mauricio Macri, seguido por Donald Trump (EEUU) y Narendra Modi (India). Pero hace falta mencionar que algunos de los más polémicos políticos no tienen perfil en dicha red, como Vladimir Putin (Rusia), Mohammed Bin Salam (Arabia Saudita) y Xi Jinping (China). De hecho, se hizo una búsqueda por los líderes más mencionados através de "hashtags", lo que nos permitió identificar la influencia de Valdimir Putin y Mohammed Bin Salam, claro, además del Narendra Modi.
+Una vez obtenido los datos, se pudo identificar que los líderes políticos del G20 más influyentes fueron Mauricio Macri, seguido por Donald Trump (EEUU) y Narendra Modi (India). Pero hace falta mencionar que algunos de los políticos más polémicos no tienen perfil en dicha red, como Vladimir Putin (Rusia), Mohammed Bin Salam (Arabia Saudita) y Xi Jinping (China). De hecho, se hizo una búsqueda de dichos líderes a través de "hashtags", lo que nos permitió identificar la influencia de Valdimir Putin, Mohammed Bin Salam y, claro, además del Narendra Modi.
   
 ```{r}
 lideres <- c("abeshinzo",
@@ -276,6 +163,13 @@ tw.es <-
   inner_join(afinnALL, ., by = "Palabra") %>% # join con lexico es
   mutate(Tipo = ifelse(Puntuacion > 0, "Positiva", "Negativa")) %>% filter(! Palabra %in% stopword.es$word )
 
+MergedMentions <- tweets %>% 
+  unnest_tokens(input = "mentions_screen_name", output = "Mentions") %>% 
+  filter(!is.na(Mentions), Mentions %in% lideres) %>% 
+  unnest_tokens(input = "hashtags", output = "Hashtags") %>% 
+  gather("origin", "MentionsMerged", Mentions, Hashtags) %>% 
+  filter(!is.na(MentionsMerged), MentionsMerged %in% lideres)
+
 all <- MergedMentions %>%
   mutate(Dia = day(created_at),
          Mes = month(created_at),
@@ -288,7 +182,7 @@ all <- MergedMentions %>%
   filter((! Palabra %in% stopword.en$word) | (! Palabra %in% stopword.es$word) )
 ```
   
-De todos los tweets recolectados en ambos idiomas (izquierda), las palabras más usadas estaban en español, como  "Gracias" y "Orgullo". Ahora si se analisa solamente lost tweets originados en dispostivos de idioma español (derecha), tenemos que las palabras más frecuentes fueron "Emocionado", "Emocionante" y "Asesinato".  
+De todos los tweets recolectados en ambos idiomas (izquierda), las dos palabras más usadas estaban en español, siendo "Gracias" la palabra más usadas con 773 tweets, seguido de "Orgullo" con 401. Ahora, si se analiza solamente los tweets originados en dispostivos de idioma español (derecha), tenemos que las tres palabras más frecuentes fueron "Emocionado","Asesinato" y "Emocionante" con poca diferencia de tweets entre cada uno.  
    
 ```{r}
 all %>% 
@@ -299,8 +193,6 @@ all %>%
   wordcloud2(size = 0.5, maxRotation = 0, shuffle = FALSE)
 ```
   
-Si bien sabemos que con el evento en el Teatro Colón hubo gran cantidad de sentimientos y emociones involucrados, empezamos a buscar una forma de confirmar que dichos sentimientos estaban de hecho relacionados a este punto específico del encuentro.  
-
 ```{r}
 tw.es %>% 
   group_by(Palabra) %>% 
@@ -313,7 +205,8 @@ tw.es %>%
 #  count(sort = T) %>% 
 #  wordcloud2(size = 0.5, maxRotation = 0, shuffle = FALSE)
 ```
-Sabiendo cuales fueron las palabras más usadas surgió la siguiente pregunta ?A qué o quienes hace referencia estas palabras?  
+  
+Sabiendo cuales fueron las palabras más usadas en español, surgió la siguiente pregunta? A qué o quienes hace referencia estas palabras?  
 Es por esto que se realizó un análisis temporal de los tweets de cada palabra usada y se discubrió que habia una mayor concentración de tweets con las palabras "emocionado" y "emocionante" entre las 20 y 24 horas del día 30 de Noviembre, por lo tanto concluimos de que dichas palabras están relacionadas con el evento "Argentum" en el teatro Colón.  
 
 ```{r}
@@ -325,9 +218,8 @@ all %>%
 #ggsave("./graficos/TimeseriesEmocionado.png", dpi = 300)
 ```
 
-Encuanto a palabra "Asesinato", Ahora para entender lo que se taba comentando en relación a la palabra "asesinato", buscamos identificar los líderes políticos más relacionados a palabras negativas (grafico abajo) y atraves del cual se nota Mohammed Bin Salam.
-
-
+Ahora para entender lo que se taba comentando en relación a la palabra "asesinato", buscamos identificar los líderes políticos más relacionados a palabras negativas (grafico abajo) y a través del cual se nota Mohammed Bin Salam, como el lider más palabras negativas asociadas.  
+  
 ```{r}
 all %>% 
   group_by(MentionsMerged, status_id) %>% 
@@ -343,9 +235,9 @@ all %>%
          y = "") + 
   tema_graf
 #ggsave("./graficos/LideresNegativos.png", dpi = 300)
-```
+```  
 
-#### Que palabras estan asociadas a kingsalman y mohammedbinsalman?
+En base a eso, buscamos identificar cuales parabras fueron más usadas en los tweets donde se menciona Mohammed Bin Salam. Por eso se hizo un nuevo gráfico donde se nota, dentre otras palabras, "murderer" (asesino). Eso esta relacionado al asesinato del periodista Jamal Kashagoshi, muerto en la embajada de Arabia Saudita en Tukia, siendo Mohammed Bin Salan sospecho del mandante del crimen ya que Jamal representaba oposición al régimen del monarca.  
 ```{r}
 all %>% 
   filter((MentionsMerged == "kingsalman") | (MentionsMerged == "mohammedbinsalman")) %>%
@@ -354,4 +246,6 @@ all %>%
   count(Palabra,sort = TRUE) %>% 
   top_n(100) %>% 
   wordcloud2(size = 0.5, maxRotation = 0, shuffle = FALSE)
-```
+```  
+En general se udo percibir que, del evento geopolítico G20 los mensajes positivos esuvieron relacionados a elementos sociales, como el espetáculo "Argentum" que ocurrio en el Teatro Colón, mientras que las palabras negativas estaban relacionada a cuestiones políticas internacionales, como el asesinato del periodista Jamal y la crisis en Fracia.  
+De esta forma, hacendo uso de técnicas de minería de textos y análsis de sentimientos, se percibe el gran potencial de las redes sociales en nos brindar informaciones y conocimientos a respecto de las tendencia y sentimientos de sus usuários.
