@@ -218,7 +218,7 @@ all %>%
 #ggsave("./graficos/TimeseriesEmocionado.png", dpi = 300)
 ```
 
-Ahora para entender lo que se taba comentando en relación a la palabra "asesinato", buscamos identificar los líderes políticos más relacionados a palabras negativas (grafico abajo) y a través del cual se nota Mohammed Bin Salam, como el lider más palabras negativas asociadas.  
+Ahora para entender lo que se estaba comentando en relación a la palabra "asesinato", buscamos identificar los líderes políticos más relacionados a palabras negativas (grafico abajo) y a través del cual se nota Mohammed Bin Salam, como el lider más palabras negativas asociadas.  
   
 ```{r}
 all %>% 
